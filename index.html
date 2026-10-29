@@ -1,0 +1,909 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mis Deudas</title>
+<meta name="description" content="Controla tus deudas: progreso de pago, plan de ahorro y respaldo en archivo.">
+<meta name="theme-color" content="#F2F5F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E1920" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mis Deudas">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+html, body { margin: 0; }
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Figtree:wght@400;500;600&display=swap">
+<style>
+/* Layout: una columna tipo app de celular. Arriba un bloque oscuro con el total vs lo pagado,
+   debajo la barra de orden y las tarjetas de cada deuda con su barra de progreso y su plan de ahorro. */
+:root {
+  --bg: #F2F5F7;
+  --surface: #FFFFFF;
+  --surface-2: #E9EEF2;
+  --fg: #13212C;
+  --muted: #566672;
+  --line: #D3DCE2;
+  --accent: #0B7A62;
+  --accent-ink: #FFFFFF;
+  --track: #DAE3E9;
+  --warn: #A85A08;
+  --warn-bg: #FBEBD6;
+  --danger: #B3302A;
+  --danger-bg: #FADFDC;
+  --hero-bg: #13212C;
+  --hero-fg: #F2F7FA;
+  --hero-muted: #A3B5C1;
+  --hero-track: #2A3C49;
+  --hero-fill: #4FD6A8;
+  --font-display: "Familjen Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1920;
+    --surface: #16252F;
+    --surface-2: #1E303C;
+    --fg: #E6EEF3;
+    --muted: #93A5B1;
+    --line: #283B48;
+    --accent: #3FCB9E;
+    --accent-ink: #06251C;
+    --track: #263A47;
+    --warn: #EBA655;
+    --warn-bg: #3A2A14;
+    --danger: #F3847C;
+    --danger-bg: #3D1E1C;
+    --hero-bg: #1D3240;
+    --hero-fg: #EAF3F8;
+    --hero-muted: #9FB5C3;
+    --hero-track: #0E1920;
+    --hero-fill: #4FD6A8;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1920;
+  --surface: #16252F;
+  --surface-2: #1E303C;
+  --fg: #E6EEF3;
+  --muted: #93A5B1;
+  --line: #283B48;
+  --accent: #3FCB9E;
+  --accent-ink: #06251C;
+  --track: #263A47;
+  --warn: #EBA655;
+  --warn-bg: #3A2A14;
+  --danger: #F3847C;
+  --danger-bg: #3D1E1C;
+  --hero-bg: #1D3240;
+  --hero-fg: #EAF3F8;
+  --hero-muted: #9FB5C3;
+  --hero-track: #0E1920;
+  --hero-fill: #4FD6A8;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+  padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, p, dl, dd { margin: 0; }
+
+.app { max-width: 560px; margin-inline: auto; display: flex; flex-direction: column; gap: 16px; }
+
+/* Encabezado */
+.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.eyebrow { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.1; letter-spacing: -.01em; text-wrap: balance; }
+
+/* Botones */
+.btn {
+  min-height: 44px; padding: 0 16px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+  font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.btn.primary:hover { filter: brightness(1.06); background: var(--accent); }
+.btn.small { min-height: 40px; padding: 0 14px; }
+.btn.danger { color: var(--danger); }
+.btn svg { width: 18px; height: 18px; flex: none; }
+
+/* Resumen */
+.hero { background: var(--hero-bg); color: var(--hero-fg); border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.hero .lbl { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--hero-muted); font-weight: 600; }
+.hero-nums { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.hero-nums > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.hero .num { font-family: var(--font-display); font-weight: 700; font-size: 28px; line-height: 1.1; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.hero .num.paid { color: var(--hero-fill); }
+.hero .bar { background: var(--hero-track); }
+.hero .bar span { background: var(--hero-fill); }
+.hero-foot { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--hero-muted); }
+.hero-foot b { color: var(--hero-fg); font-weight: 600; }
+
+/* Barras de progreso */
+.bar { height: 12px; border-radius: 999px; background: var(--track); overflow: hidden; }
+.bar span { display: block; height: 100%; border-radius: 999px; background: var(--accent); transition: width .5s ease; }
+.hero .bar { height: 14px; }
+
+/* Barra de orden */
+.toolbar { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.toolbar h2 { font-family: var(--font-display); font-size: 20px; font-weight: 700; }
+.toolbar .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+#sortBtn svg { transition: transform .2s ease; }
+#sortBtn.asc svg { transform: rotate(180deg); }
+
+/* Aviso de ejemplos */
+.notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: var(--surface-2); border-radius: 12px; padding: 12px 14px; font-size: 14px; color: var(--muted); }
+.notice p { flex: 1 1 200px; min-width: 0; }
+
+/* Lista de deudas */
+.list { display: flex; flex-direction: column; gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.name { font-family: var(--font-display); font-size: 19px; font-weight: 700; line-height: 1.2; min-width: 0; overflow-wrap: anywhere; }
+.tag { font-family: var(--font-body); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); border-radius: 6px; padding: 2px 6px; vertical-align: middle; }
+.pill { flex: none; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.pill.soon { background: var(--warn-bg); color: var(--warn); }
+.pill.over { background: var(--danger-bg); color: var(--danger); }
+.pill.done { background: var(--accent); color: var(--accent-ink); }
+.due { color: var(--muted); font-size: 14px; margin-top: -6px; }
+.amounts { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.amounts > div { min-width: 0; }
+.lbl { display: block; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.big { display: block; font-family: var(--font-display); font-size: 28px; font-weight: 700; line-height: 1.1; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.of { color: var(--muted); font-size: 14px; text-align: right; }
+.bar-note { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-top: -4px; }
+.card.is-done .big { color: var(--accent); }
+
+/* Plan de ahorro */
+.plan { background: var(--surface-2); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.plan-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.stepper { display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 2px; }
+.stepper button { width: 40px; height: 40px; border: 0; border-radius: 10px; background: transparent; font-size: 20px; font-weight: 600; line-height: 1; }
+.stepper button:hover { background: var(--surface-2); }
+.stepper span { min-width: 74px; text-align: center; font-size: 14px; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stats > div { min-width: 0; }
+.stats dt { font-size: 12px; color: var(--muted); }
+.stats dd { font-family: var(--font-display); font-size: 17px; font-weight: 700; overflow-wrap: anywhere; }
+.hint { font-size: 13px; color: var(--muted); }
+
+.card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.card-actions .btn { flex: 1 1 auto; }
+.pay { display: flex; gap: 8px; flex-wrap: wrap; }
+.pay input { flex: 1 1 140px; min-width: 0; }
+
+.hist-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: transparent; font-weight: 600; font-size: 14px; }
+.hist-toggle:hover { background: var(--surface-2); }
+.hist-toggle svg { width: 18px; height: 18px; flex: none; transition: transform .2s ease; }
+.hist-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.card { cursor: pointer; }
+.hist { background: var(--surface-2); border-radius: 12px; padding: 2px 12px; }
+.hist .hint { padding: 10px 0; }
+.mov { list-style: none; margin: 0; padding: 0; }
+.mov li { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.mov li:last-child { border-bottom: 0; }
+.mov-fecha { color: var(--muted); font-size: 13px; }
+.mov-monto { font-family: var(--font-display); font-weight: 700; text-align: right; }
+.mov-monto.paid { color: var(--accent); }
+.mov-monto.more { color: var(--warn); }
+.act { display: flex; flex-direction: column; gap: 10px; background: var(--surface-2); border-radius: 12px; padding: 12px; cursor: default; }
+.act-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.act-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 380px) { .act-fields { grid-template-columns: minmax(0, 1fr); } .mov li { grid-template-columns: 82px minmax(0, 1fr) auto; } }
+
+/* Vacío */
+.empty { text-align: center; padding: 32px 16px; border: 1px dashed var(--line); border-radius: 16px; color: var(--muted); display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.empty h3 { font-family: var(--font-display); font-size: 19px; color: var(--fg); }
+
+.foot-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.foot { font-size: 13px; color: var(--muted); text-align: center; text-wrap: balance; }
+
+/* Campos */
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field label { font-size: 13px; font-weight: 600; }
+.field .opt { font-weight: 400; color: var(--muted); }
+input[type="text"], input[type="number"], input[type="date"], input:not([type]) {
+  width: 100%; min-height: 48px; padding: 0 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface); font-size: 16px;
+}
+.row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.err { color: var(--danger); font-size: 13px; min-height: 18px; }
+
+/* Ventanas */
+.overlay { position: fixed; inset: 0; z-index: 20; background: rgba(8, 16, 22, .55); display: flex; align-items: flex-end; justify-content: center;
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  padding-left: max(0px, env(safe-area-inset-left, 0px));
+  padding-right: max(0px, env(safe-area-inset-right, 0px));
+}
+.sheet { width: 100%; max-width: 520px; max-height: 100%; overflow-y: auto; background: var(--bg); border-radius: 20px 20px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; }
+.sheet h2 { font-family: var(--font-display); font-size: 22px; font-weight: 700; }
+.sheet p.sub { color: var(--muted); font-size: 14px; }
+.sheet-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sheet-actions .btn { flex: 1 1 140px; }
+@media (min-width: 600px) { .overlay { align-items: center; } .sheet { border-radius: 20px; max-height: 92%; } }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 30; background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 500; max-width: calc(100% - 32px); text-align: center; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .bar span, #sortBtn svg { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div>
+      <p class="eyebrow" id="hoy"></p>
+      <h1>Mis deudas</h1>
+    </div>
+    <button class="btn small" id="backupBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+      Respaldo
+    </button>
+  </header>
+
+  <section class="hero" aria-label="Resumen de todas tus deudas">
+    <div class="hero-nums">
+      <div><span class="lbl">Deuda total</span><span class="num" id="sumTotal">$0</span></div>
+      <div><span class="lbl">Pagado</span><span class="num paid" id="sumPaid">$0</span></div>
+    </div>
+    <div class="bar" id="sumBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Avance total"><span style="width:0%"></span></div>
+    <div class="hero-foot"><span>Falta <b id="sumLeft">$0</b></span><span><b id="sumPct">0%</b> pagado</span></div>
+  </section>
+
+  <div class="toolbar">
+    <h2>Tus deudas</h2>
+    <div class="actions">
+      <button class="btn small" id="sortBtn" type="button" aria-label="Cambiar orden por monto">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m6 13 6 6 6-6"/></svg>
+        <span id="sortLabel">Mayor a menor</span>
+      </button>
+      <button class="btn small primary" id="addBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Nueva deuda
+      </button>
+    </div>
+  </div>
+
+  <div class="notice" id="notice" hidden>
+    <p>Estas deudas son de ejemplo para que veas cómo funciona. Edítalas o bórralas cuando quieras.</p>
+    <button class="btn small" id="clearExamples" type="button">Borrar ejemplos</button>
+  </div>
+
+  <div class="list" id="list"></div>
+
+  <div class="foot-wrap">
+    <p class="foot">Todo se guarda solo en este celular, dentro de la app. Usa Respaldo para guardar un archivo o cargarlo en otro dispositivo.</p>
+    <button class="btn small" id="installBtn" type="button" hidden>Instalar app en este celular</button>
+  </div>
+</div>
+
+<!-- Formulario de deuda -->
+<div class="overlay" id="formOverlay" hidden>
+  <form class="sheet" id="debtForm" role="dialog" aria-modal="true" aria-labelledby="formTitle" novalidate>
+    <h2 id="formTitle">Nueva deuda</h2>
+    <div class="field">
+      <label for="fNombre">Nombre de la deuda</label>
+      <input id="fNombre" type="text" maxlength="60" autocomplete="off" placeholder="Ej. Tarjeta de crédito">
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="fMonto">Monto total</label>
+        <input id="fMonto" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00">
+      </div>
+      <div class="field">
+        <label for="fPagado">Ya pagado <span class="opt">(opcional)</span></label>
+        <input id="fPagado" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00">
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="fFecha">Fecha de pago</label>
+        <input id="fFecha" type="date">
+      </div>
+      <div class="field">
+        <label for="fPagos">Dividir en pagos</label>
+        <input id="fPagos" type="number" min="1" max="120" step="1" inputmode="numeric" value="1">
+      </div>
+    </div>
+    <p class="err" id="fErr" role="alert"></p>
+    <div class="sheet-actions">
+      <button class="btn primary" type="submit">Guardar</button>
+      <button class="btn" type="button" id="fCancel">Cancelar</button>
+    </div>
+    <button class="btn danger" type="button" id="fDelete" hidden>Eliminar deuda</button>
+  </form>
+</div>
+
+<!-- Respaldo -->
+<div class="overlay" id="backupOverlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="backupTitle">
+    <h2 id="backupTitle">Copia de seguridad</h2>
+    <p class="sub">Guarda tus deudas en un archivo y elige la carpeta donde quieres dejarlo. Para verlas en otro dispositivo, pásale el archivo y cárgalo ahí desde esta misma pantalla.</p>
+    <div class="sheet-actions">
+      <button class="btn primary" type="button" id="saveFile">Guardar archivo</button>
+      <button class="btn" type="button" id="shareFile">Enviar o guardar en…</button>
+    </div>
+    <button class="btn" type="button" id="loadFile">Cargar archivo de respaldo</button>
+    <button class="btn" type="button" id="copyData">Copiar datos como texto</button>
+    <input type="file" id="fileInput" class="sr" tabindex="-1" aria-hidden="true">
+    <div id="importConfirm" hidden>
+      <p class="sub" id="importMsg"></p>
+      <div class="sheet-actions" style="margin-top:10px">
+        <button class="btn primary" type="button" id="importYes">Reemplazar mis deudas</button>
+        <button class="btn" type="button" id="importNo">Cancelar</button>
+      </div>
+    </div>
+    <p class="err" id="bErr" role="alert"></p>
+    <button class="btn" type="button" id="backupClose">Cerrar</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  var KEY = 'mis-deudas-v1';
+  var nf = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  var state = { orden: 'desc', debts: [] };
+  var openAct = null;
+  var focusAct = false;
+  var expanded = {};
+  var editingId = null;
+  var lastFocus = null;
+  var pendingImport = null;
+  var toastTimer = null;
+  var deleteTimer = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+  function fmt(n) { return nf.format(n); }
+  function round2(n) { return Math.round(n * 100) / 100; }
+  function ceil2(n) { return Math.ceil(n * 100 - 1e-9) / 100; }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function today() { var n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+  function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+  function parseDate(s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function daysBetween(a, b) { return Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 864e5); }
+  function fechaTxt(s) { return parseDate(s).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/\./g, ''); }
+  function num(v) { var n = parseFloat(String(v).replace(/,/g, '.').replace(/[^0-9.\-]/g, '')); return isFinite(n) ? n : NaN; }
+  function plural(n, a, b) { return n === 1 ? a : b; }
+
+  /* ---------- Guardado ---------- */
+  function persist() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+  function mov(m, diasAtras) {
+    var t = today();
+    return { monto: m, fecha: iso(addDays(t, -diasAtras)), t: Date.now() - diasAtras * 864e5 };
+  }
+  function seed() {
+    var t = today();
+    return [
+      { id: uid(), nombre: 'Tarjeta de crédito', monto: 12000, pagado: 3000, fecha: iso(addDays(t, 24)), pagos: 4, ejemplo: true, abonos: [mov(1000, 20), mov(2000, 6)], aumentos: [mov(1000, 10)] },
+      { id: uid(), nombre: 'Préstamo de la moto', monto: 8500, pagado: 5100, fecha: iso(addDays(t, 9)), pagos: 3, ejemplo: true, abonos: [mov(3000, 40), mov(2100, 12)], aumentos: [] },
+      { id: uid(), nombre: 'Celular a plazos', monto: 4200, pagado: 0, fecha: iso(addDays(t, 60)), pagos: 6, ejemplo: true, abonos: [], aumentos: [] }
+    ];
+  }
+  function validMov(a) { return a && a.monto > 0 && /^\d{4}-\d{2}-\d{2}$/.test(String(a.fecha)); }
+  function normalize() {
+    state.debts.forEach(function (d) {
+      d.abonos = Array.isArray(d.abonos) ? d.abonos.filter(validMov) : [];
+      d.aumentos = Array.isArray(d.aumentos) ? d.aumentos.filter(validMov) : [];
+    });
+  }
+  function sumAbonos(d) { return round2((d.abonos || []).reduce(function (s, a) { return s + a.monto; }, 0)); }
+  function addAbono(d, monto, fecha) {
+    if (!Array.isArray(d.abonos)) d.abonos = [];
+    d.abonos.push({ monto: monto, fecha: fecha, t: Date.now() });
+    d.pagado = round2(d.pagado + monto);
+  }
+  function reconcileAbonos(d) {
+    var ab = (d.abonos || []).slice().sort(function (a, b) { return a.fecha.localeCompare(b.fecha) || (a.t || 0) - (b.t || 0); });
+    var over = round2(sumAbonos({ abonos: ab }) - d.pagado);
+    while (over > 0.004 && ab.length) {
+      var last = ab[ab.length - 1];
+      if (last.monto - over > 0.004) { last.monto = round2(last.monto - over); over = 0; }
+      else { over = round2(over - last.monto); ab.pop(); }
+    }
+    d.abonos = ab;
+  }
+  function load() {
+    var raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (e) {}
+    if (raw) {
+      try {
+        var s = JSON.parse(raw);
+        if (s && Array.isArray(s.debts)) {
+          state.orden = s.orden === 'asc' ? 'asc' : 'desc';
+          state.debts = s.debts;
+          normalize();
+          return;
+        }
+      } catch (e) {}
+    }
+    state.debts = seed();
+    persist();
+  }
+
+  /* ---------- Cálculos ---------- */
+  function calc(d) {
+    var pagado = Math.min(d.pagado, d.monto);
+    var resta = Math.max(0, round2(d.monto - pagado));
+    var dias = daysBetween(today(), parseDate(d.fecha));
+    var pagos = Math.max(1, d.pagos | 0);
+    var o = { pagado: pagado, resta: resta, dias: dias, pagos: pagos, porPago: ceil2(resta / pagos), porDia: null, porSemana: null, cada: null };
+    if (dias > 0) {
+      o.porDia = ceil2(resta / dias);
+      o.porSemana = ceil2(resta / Math.max(1, Math.ceil(dias / 7)));
+      o.cada = Math.max(1, Math.round(dias / pagos));
+    }
+    return o;
+  }
+  function status(p) {
+    if (p.resta <= 0) return { cls: 'done', text: 'Pagada' };
+    if (p.dias < 0) { var a = -p.dias; return { cls: 'over', text: 'Vencida hace ' + a + ' ' + plural(a, 'día', 'días') }; }
+    if (p.dias === 0) return { cls: 'over', text: 'Vence hoy' };
+    if (p.dias === 1) return { cls: 'soon', text: 'Vence mañana' };
+    if (p.dias <= 7) return { cls: 'soon', text: 'Vence en ' + p.dias + ' días' };
+    return { cls: '', text: 'Vence en ' + p.dias + ' días' };
+  }
+
+  /* ---------- Dibujo ---------- */
+  function renderSummary() {
+    var total = 0, pagado = 0;
+    state.debts.forEach(function (d) { total += d.monto; pagado += Math.min(d.pagado, d.monto); });
+    total = round2(total); pagado = round2(pagado);
+    var pct = total > 0 ? Math.round(pagado / total * 100) : 0;
+    $('sumTotal').textContent = fmt(total);
+    $('sumPaid').textContent = fmt(pagado);
+    $('sumLeft').textContent = fmt(Math.max(0, round2(total - pagado)));
+    $('sumPct').textContent = pct + '%';
+    var bar = $('sumBar');
+    bar.setAttribute('aria-valuenow', pct);
+    bar.firstElementChild.style.width = pct + '%';
+  }
+
+  function movimientos(d) {
+    var list = [];
+    (d.abonos || []).forEach(function (a) { list.push({ tipo: 'abono', monto: a.monto, fecha: a.fecha, t: a.t || 0 }); });
+    (d.aumentos || []).forEach(function (a) { list.push({ tipo: 'aumento', monto: a.monto, fecha: a.fecha, t: a.t || 0 }); });
+    list.sort(function (a, b) { return b.fecha.localeCompare(a.fecha) || b.t - a.t; });
+    return list;
+  }
+
+  function histHTML(d) {
+    var movs = movimientos(d);
+    var antes = round2(d.pagado - sumAbonos(d));
+    if (!movs.length && antes <= 0.004) {
+      return '<div class="hist"><p class="hint">Aún no hay abonos. Toca Abonar para registrar el primero.</p></div>';
+    }
+    var h = '<div class="hist"><ul class="mov">';
+    movs.forEach(function (m) {
+      var aum = m.tipo === 'aumento';
+      h += '<li><span class="mov-fecha">' + fechaTxt(m.fecha) + '</span><span>' + (aum ? 'Se sumó a la deuda' : 'Abono') + '</span>';
+      h += '<span class="mov-monto ' + (aum ? 'more' : 'paid') + '">' + (aum ? '+' : '') + fmt(m.monto) + '</span></li>';
+    });
+    if (antes > 0.004) {
+      h += '<li><span class="mov-fecha">Sin fecha</span><span>Pagado antes del historial</span><span class="mov-monto paid">' + fmt(antes) + '</span></li>';
+    }
+    return h + '</ul></div>';
+  }
+
+  function cardHTML(d) {
+    var p = calc(d);
+    var done = p.resta <= 0;
+    var pct = Math.min(100, Math.round(p.pagado / d.monto * 100));
+    var st = status(p);
+    var nAbonos = (d.abonos || []).length;
+    var isOpen = !!expanded[d.id];
+    var act = openAct && openAct.id === d.id ? openAct.kind : null;
+    var h = '<article class="card' + (done ? ' is-done' : '') + '" data-id="' + d.id + '">';
+    h += '<div class="card-top"><h3 class="name">' + esc(d.nombre) + (d.ejemplo ? ' <span class="tag">Ejemplo</span>' : '') + '</h3>';
+    h += '<span class="pill ' + st.cls + '">' + st.text + '</span></div>';
+    h += '<p class="due">Fecha de pago: ' + fechaTxt(d.fecha) + '</p>';
+    h += '<div class="amounts"><div><span class="lbl">' + (done ? 'Liquidada' : 'Resta por pagar') + '</span><span class="big">' + fmt(p.resta) + '</span></div>';
+    h += '<div class="of">de ' + fmt(d.monto) + '</div></div>';
+    h += '<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '" aria-label="Progreso de ' + esc(d.nombre) + '"><span style="width:' + pct + '%"></span></div>';
+    h += '<p class="bar-note"><span>Pagado ' + fmt(p.pagado) + '</span><span>' + pct + '%</span></p>';
+    h += '<button type="button" class="hist-toggle" data-act="historial" aria-expanded="' + isOpen + '"><span>' + (isOpen ? 'Ocultar abonos' : 'Ver abonos' + (nAbonos ? ' (' + nAbonos + ')' : '')) + '</span>';
+    h += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>';
+    if (isOpen) h += histHTML(d);
+    if (!done) {
+      h += '<div class="plan"><div class="plan-head"><span class="lbl">Plan de ahorro</span>';
+      h += '<div class="stepper" role="group" aria-label="Dividir en pagos"><button type="button" data-act="menos" aria-label="Un pago menos">−</button>';
+      h += '<span><b>' + p.pagos + '</b> ' + plural(p.pagos, 'pago', 'pagos') + '</span>';
+      h += '<button type="button" data-act="mas" aria-label="Un pago más">+</button></div></div>';
+      h += '<dl class="stats"><div><dt>Cada pago</dt><dd>' + fmt(p.porPago) + '</dd></div>';
+      h += '<div><dt>Por semana</dt><dd>' + (p.porSemana === null ? '—' : fmt(p.porSemana)) + '</dd></div>';
+      h += '<div><dt>Por día</dt><dd>' + (p.porDia === null ? '—' : fmt(p.porDia)) + '</dd></div></dl>';
+      if (p.dias > 0) {
+        h += '<p class="hint">' + (p.pagos === 1 ? 'Un solo pago el ' + fechaTxt(d.fecha) + '.' : 'Un pago cada ' + p.cada + ' ' + plural(p.cada, 'día', 'días') + ' hasta el ' + fechaTxt(d.fecha) + '.') + '</p>';
+      } else {
+        h += '<p class="hint">La fecha ya pasó. Lo mejor es cubrir lo que falta cuanto antes.</p>';
+      }
+      h += '</div>';
+    }
+    h += '<div class="card-actions">';
+    if (!done) h += '<button class="btn small primary" type="button" data-act="abonar" aria-expanded="' + (act === 'abonar') + '">Abonar</button>';
+    h += '<button class="btn small" type="button" data-act="sumar" aria-expanded="' + (act === 'sumar') + '">Sumar a la deuda</button>';
+    h += '<button class="btn small" type="button" data-act="editar">Editar</button></div>';
+    if (act === 'abonar' && !done) {
+      h += '<form class="act" data-form="abonar"><div class="act-fields">';
+      h += '<div class="field"><label for="act-' + d.id + '">Monto del abono</label><input id="act-' + d.id + '" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00"></div>';
+      h += '<div class="field"><label for="actf-' + d.id + '">Fecha del abono</label><input id="actf-' + d.id + '" type="date" value="' + iso(today()) + '"></div></div>';
+      h += '<div class="act-btns"><button class="btn small primary" type="submit">Registrar abono</button>';
+      h += '<button class="btn small" type="button" data-act="liquidar">Liquidar todo</button>';
+      h += '<button class="btn small" type="button" data-act="cerrar">Cancelar</button></div>';
+      h += '<p class="err" data-err></p></form>';
+    } else if (act === 'sumar') {
+      h += '<form class="act" data-form="sumar"><div class="field"><label for="act-' + d.id + '">Cantidad a agregar a la deuda</label>';
+      h += '<input id="act-' + d.id + '" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00"></div>';
+      h += '<div class="act-btns"><button class="btn small primary" type="submit">Confirmar</button>';
+      h += '<button class="btn small" type="button" data-act="cerrar">Cancelar</button></div>';
+      h += '<p class="err" data-err></p></form>';
+    }
+    h += '</article>';
+    return h;
+  }
+
+  function render() {
+    $('hoy').textContent = today().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+    var asc = state.orden === 'asc';
+    $('sortBtn').classList.toggle('asc', asc);
+    $('sortLabel').textContent = asc ? 'Menor a mayor' : 'Mayor a menor';
+    $('notice').hidden = !state.debts.some(function (d) { return d.ejemplo; });
+    renderSummary();
+    var list = $('list');
+    if (!state.debts.length) {
+      list.innerHTML = '<div class="empty"><h3>Aún no tienes deudas registradas</h3><p>Agrega la primera con su monto y su fecha de pago para ver cuánto debes ahorrar cada semana o cada día.</p><button class="btn primary" type="button" data-act="nueva">Agregar deuda</button></div>';
+      return;
+    }
+    var sorted = state.debts.slice().sort(function (a, b) {
+      var diff = asc ? a.monto - b.monto : b.monto - a.monto;
+      return diff || a.fecha.localeCompare(b.fecha);
+    });
+    list.innerHTML = sorted.map(cardHTML).join('');
+    if (focusAct && openAct) {
+      var inp = $('act-' + openAct.id);
+      if (inp) inp.focus();
+    }
+    focusAct = false;
+  }
+
+  function find(id) { return state.debts.filter(function (d) { return d.id === id; })[0]; }
+
+  function toast(msg) {
+    var t = $('toast');
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
+  }
+
+  /* ---------- Acciones de las tarjetas ---------- */
+  function toggleAct(id, kind) {
+    var same = openAct && openAct.id === id && openAct.kind === kind;
+    openAct = same ? null : { id: id, kind: kind };
+    focusAct = !!openAct;
+    render();
+  }
+
+  $('list').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-act]');
+    if (btn && btn.getAttribute('data-act') === 'nueva') { openForm(null, btn); return; }
+    var card = e.target.closest('.card');
+    if (!card) return;
+    var d = find(card.getAttribute('data-id'));
+    if (!d) return;
+    if (!btn) {
+      if (e.target.closest('form, input, button, a, label, .plan, .hist')) return;
+      expanded[d.id] = !expanded[d.id];
+      render();
+      return;
+    }
+    var act = btn.getAttribute('data-act');
+    if (act === 'historial') {
+      expanded[d.id] = !expanded[d.id];
+      render();
+    } else if (act === 'mas' || act === 'menos') {
+      d.pagos = Math.min(120, Math.max(1, (d.pagos | 0) + (act === 'mas' ? 1 : -1)));
+      persist(); render();
+    } else if (act === 'abonar' || act === 'sumar') {
+      toggleAct(d.id, act);
+    } else if (act === 'cerrar') {
+      openAct = null; render();
+    } else if (act === 'liquidar') {
+      var df = card.querySelector('input[type="date"]');
+      var fechaL = df ? df.value : iso(today());
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaL)) { card.querySelector('[data-err]').textContent = 'Elige la fecha del abono.'; return; }
+      var restaL = Math.max(0, round2(d.monto - d.pagado));
+      if (restaL > 0) addAbono(d, restaL, fechaL);
+      d.pagado = d.monto;
+      openAct = null; expanded[d.id] = true; persist(); render();
+      toast('Deuda liquidada: ' + d.nombre);
+    } else if (act === 'editar') {
+      openForm(d.id, btn);
+    }
+  });
+
+  $('list').addEventListener('submit', function (e) {
+    var form = e.target.closest('[data-form]');
+    if (!form) return;
+    e.preventDefault();
+    var kind = form.getAttribute('data-form');
+    var card = form.closest('.card');
+    var d = find(card.getAttribute('data-id'));
+    var err = card.querySelector('[data-err]');
+    var v = num(form.querySelector('input[type="text"]').value);
+    if (kind === 'abonar') {
+      var fecha = form.querySelector('input[type="date"]').value;
+      var resta = Math.max(0, round2(d.monto - d.pagado));
+      if (!(v > 0)) { err.textContent = 'Escribe un monto mayor a cero.'; return; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) { err.textContent = 'Elige la fecha del abono.'; return; }
+      var abono = Math.min(round2(v), resta);
+      addAbono(d, abono, fecha);
+      openAct = null; expanded[d.id] = true; persist(); render();
+      toast(v > resta ? 'Se abonó ' + fmt(abono) + ', que era lo que faltaba.' : 'Abono de ' + fmt(abono) + ' registrado.');
+    } else if (kind === 'sumar') {
+      if (!(v > 0)) { err.textContent = 'Escribe la cantidad que quieres agregar.'; return; }
+      var extra = round2(v);
+      d.monto = round2(d.monto + extra);
+      if (!Array.isArray(d.aumentos)) d.aumentos = [];
+      d.aumentos.push({ monto: extra, fecha: iso(today()), t: Date.now() });
+      openAct = null; expanded[d.id] = true; persist(); render();
+      toast('Se agregaron ' + fmt(extra) + ' a la deuda.');
+    }
+  });
+
+  /* ---------- Orden ---------- */
+  $('sortBtn').addEventListener('click', function () {
+    state.orden = state.orden === 'desc' ? 'asc' : 'desc';
+    persist(); render();
+  });
+
+  $('clearExamples').addEventListener('click', function () {
+    state.debts = state.debts.filter(function (d) { return !d.ejemplo; });
+    openAct = null; persist(); render();
+  });
+
+  /* ---------- Formulario ---------- */
+  function showOverlay(el) { el.hidden = false; document.body.style.overflow = 'hidden'; }
+  function hideOverlay(el) {
+    el.hidden = true;
+    if ($('formOverlay').hidden && $('backupOverlay').hidden) document.body.style.overflow = '';
+    if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+  }
+
+  function openForm(id, opener) {
+    lastFocus = opener || $('addBtn');
+    editingId = id;
+    var d = id ? find(id) : null;
+    $('formTitle').textContent = d ? 'Editar deuda' : 'Nueva deuda';
+    $('fNombre').value = d ? d.nombre : '';
+    $('fMonto').value = d ? d.monto : '';
+    $('fPagado').value = d && d.pagado ? d.pagado : '';
+    $('fFecha').value = d ? d.fecha : iso(addDays(today(), 30));
+    $('fPagos').value = d ? d.pagos : 1;
+    $('fErr').textContent = '';
+    resetDeleteBtn();
+    $('fDelete').hidden = !d;
+    showOverlay($('formOverlay'));
+    $('fNombre').focus();
+  }
+  function closeForm() { hideOverlay($('formOverlay')); editingId = null; }
+  function resetDeleteBtn() { clearTimeout(deleteTimer); $('fDelete').textContent = 'Eliminar deuda'; $('fDelete').dataset.armed = ''; }
+
+  $('addBtn').addEventListener('click', function () { openForm(null, $('addBtn')); });
+  $('fCancel').addEventListener('click', closeForm);
+  $('formOverlay').addEventListener('click', function (e) { if (e.target === this) closeForm(); });
+
+  $('fDelete').addEventListener('click', function () {
+    if (!editingId) return;
+    if (this.dataset.armed !== '1') {
+      this.dataset.armed = '1';
+      this.textContent = 'Toca otra vez para eliminar';
+      var self = this;
+      deleteTimer = setTimeout(resetDeleteBtn, 4000);
+      return;
+    }
+    state.debts = state.debts.filter(function (d) { return d.id !== editingId; });
+    if (openAct && openAct.id === editingId) openAct = null;
+    persist(); closeForm(); render();
+    toast('Deuda eliminada.');
+  });
+
+  $('debtForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var nombre = $('fNombre').value.trim();
+    var monto = num($('fMonto').value);
+    var pagadoRaw = $('fPagado').value.trim();
+    var pagado = pagadoRaw === '' ? 0 : num(pagadoRaw);
+    var fecha = $('fFecha').value;
+    var pagos = parseInt($('fPagos').value, 10);
+    var err = '';
+    if (!nombre) err = 'Escribe el nombre de la deuda.';
+    else if (!(monto > 0)) err = 'El monto total debe ser mayor a cero.';
+    else if (isNaN(pagado) || pagado < 0) err = 'Lo ya pagado debe ser cero o más.';
+    else if (pagado > monto) err = 'Lo ya pagado no puede ser mayor al monto total.';
+    else if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) err = 'Elige la fecha de pago.';
+    else if (!(pagos >= 1 && pagos <= 120)) err = 'Los pagos deben ser entre 1 y 120.';
+    if (err) { $('fErr').textContent = err; return; }
+    monto = round2(monto); pagado = round2(pagado);
+    if (editingId) {
+      var d = find(editingId);
+      d.nombre = nombre; d.monto = monto; d.pagado = pagado; d.fecha = fecha; d.pagos = pagos;
+      reconcileAbonos(d);
+      delete d.ejemplo;
+    } else {
+      state.debts.push({ id: uid(), nombre: nombre, monto: monto, pagado: pagado, fecha: fecha, pagos: pagos, abonos: [], aumentos: [] });
+    }
+    persist(); closeForm(); render();
+    toast(editingId ? 'Cambios guardados.' : 'Deuda agregada.');
+  });
+
+  /* ---------- Respaldo en archivo ---------- */
+  var installEvt = null;
+
+  function fileName(ext) { return 'mis-deudas-' + iso(today()) + '.' + ext; }
+  function jsonBlob() { return new Blob([exportJSON()], { type: 'application/json' }); }
+  function pickShareFile() {
+    if (!navigator.canShare || !navigator.share || typeof File !== 'function') return null;
+    var cands = [
+      new File([jsonBlob()], fileName('json'), { type: 'application/json' }),
+      new File([jsonBlob()], fileName('txt'), { type: 'text/plain' })
+    ];
+    for (var i = 0; i < cands.length; i++) {
+      try { if (navigator.canShare({ files: [cands[i]] })) return cands[i]; } catch (e) {}
+    }
+    return null;
+  }
+  function initBackup() {
+    if (!pickShareFile()) $('shareFile').hidden = true;
+  }
+
+  function exportJSON() {
+    return JSON.stringify({ app: 'mis-deudas', version: 2, exportado: new Date().toISOString(), orden: state.orden, debts: state.debts }, null, 2);
+  }
+  function setBErr(m) { $('bErr').textContent = m || ''; }
+
+  $('backupBtn').addEventListener('click', function () {
+    lastFocus = $('backupBtn');
+    setBErr(''); pendingImport = null; $('importConfirm').hidden = true;
+    showOverlay($('backupOverlay'));
+    $('saveFile').focus();
+  });
+  function closeBackup() { hideOverlay($('backupOverlay')); }
+  $('backupClose').addEventListener('click', closeBackup);
+  $('backupOverlay').addEventListener('click', function (e) { if (e.target === this) closeBackup(); });
+
+  $('saveFile').addEventListener('click', function () {
+    setBErr('');
+    var name = fileName('json');
+    if (window.showSaveFilePicker) {
+      window.showSaveFilePicker({ suggestedName: name, types: [{ description: 'Respaldo de deudas', accept: { 'application/json': ['.json'] } }] })
+        .then(function (h) { return h.createWritable().then(function (w) { return w.write(jsonBlob()).then(function () { return w.close(); }); }); })
+        .then(function () { toast('Archivo guardado.'); })
+        .catch(function (e) { if (!e || e.name !== 'AbortError') setBErr('No se pudo guardar el archivo.'); });
+      return;
+    }
+    var url = URL.createObjectURL(jsonBlob());
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    toast('Archivo descargado. Búscalo en Descargas.');
+  });
+
+  $('shareFile').addEventListener('click', function () {
+    setBErr('');
+    var f = pickShareFile();
+    if (!f) { setBErr('Este navegador no deja compartir archivos. Usa Guardar archivo.'); return; }
+    navigator.share({ files: [f], title: 'Respaldo de Mis Deudas' })
+      .then(function () { toast('Archivo enviado.'); })
+      .catch(function (e) { if (!e || e.name !== 'AbortError') setBErr('No se pudo compartir. Prueba con Guardar archivo.'); });
+  });
+
+  $('copyData').addEventListener('click', function () {
+    setBErr('');
+    var done = function () { toast('Datos copiados.'); };
+    var fail = function () { setBErr('No se pudo copiar. Prueba con Guardar archivo.'); };
+    try { navigator.clipboard.writeText(exportJSON()).then(done, fail); } catch (e) { fail(); }
+  });
+
+  $('loadFile').addEventListener('click', function () { setBErr(''); $('fileInput').value = ''; $('fileInput').click(); });
+  $('fileInput').addEventListener('change', function () {
+    var f = this.files && this.files[0];
+    if (!f) return;
+    var r = new FileReader();
+    r.onerror = function () { setBErr('No se pudo leer el archivo.'); };
+    r.onload = function () {
+      var debts = parseImport(String(r.result));
+      if (!debts) { setBErr('Ese archivo no tiene deudas válidas.'); return; }
+      pendingImport = debts;
+      $('importMsg').textContent = 'El archivo trae ' + debts.length + ' ' + plural(debts.length, 'deuda', 'deudas') + '. Si continúas, reemplazan las que tienes ahora.';
+      $('importConfirm').hidden = false;
+    };
+    r.readAsText(f);
+  });
+  function cleanMovs(arr) {
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(validMov).map(function (a) { return { monto: round2(Number(a.monto)), fecha: String(a.fecha), t: Number(a.t) || 0 }; });
+  }
+  function parseImport(text) {
+    var o;
+    try { o = JSON.parse(text); } catch (e) { return null; }
+    var arr = Array.isArray(o) ? o : (o && Array.isArray(o.debts) ? o.debts : null);
+    if (!arr) return null;
+    var out = [];
+    for (var i = 0; i < arr.length; i++) {
+      var d = arr[i];
+      if (!d || typeof d.nombre !== 'string' || !d.nombre.trim()) return null;
+      var monto = Number(d.monto), pagado = Number(d.pagado || 0), pagos = parseInt(d.pagos, 10) || 1;
+      if (!(monto > 0) || !(pagado >= 0) || !/^\d{4}-\d{2}-\d{2}$/.test(String(d.fecha))) return null;
+      var item = { id: uid() + i, nombre: d.nombre.trim().slice(0, 60), monto: round2(monto), pagado: round2(Math.min(pagado, monto)), fecha: String(d.fecha), pagos: Math.min(120, Math.max(1, pagos)), abonos: cleanMovs(d.abonos), aumentos: cleanMovs(d.aumentos) };
+      reconcileAbonos(item);
+      out.push(item);
+    }
+    if (!out.length) return null;
+    out.orden = o && o.orden === 'asc' ? 'asc' : 'desc';
+    return out;
+  }
+  $('importYes').addEventListener('click', function () {
+    if (!pendingImport) return;
+    state.debts = pendingImport;
+    if (pendingImport.orden) state.orden = pendingImport.orden;
+    pendingImport = null; openAct = null;
+    $('importConfirm').hidden = true;
+    persist(); render(); closeBackup();
+    toast('Deudas cargadas desde el archivo.');
+  });
+  $('importNo').addEventListener('click', function () { pendingImport = null; $('importConfirm').hidden = true; });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (!$('formOverlay').hidden) closeForm();
+    else if (!$('backupOverlay').hidden) closeBackup();
+  });
+
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEvt = e; $('installBtn').hidden = false; });
+  window.addEventListener('appinstalled', function () { installEvt = null; $('installBtn').hidden = true; toast('App instalada.'); });
+  $('installBtn').addEventListener('click', function () {
+    if (!installEvt) return;
+    installEvt.prompt();
+    installEvt.userChoice.then(function () { installEvt = null; $('installBtn').hidden = true; });
+  });
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('./sw.js').catch(function () {}); });
+  }
+  if (navigator.storage && navigator.storage.persist) { navigator.storage.persist().catch(function () {}); }
+
+  load();
+  render();
+  initBackup();
+})();
+</script>
+</body>
+</html>
