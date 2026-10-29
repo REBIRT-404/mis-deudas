@@ -157,6 +157,9 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-h
 .notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: var(--surface-2); border-radius: 12px; padding: 12px 14px; font-size: 14px; color: var(--muted); }
 .notice p { flex: 1 1 200px; min-width: 0; }
 
+.notice.warn { background: var(--warn-bg); color: var(--warn); }
+.notice .n-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+
 /* Lista de deudas */
 .list { display: flex; flex-direction: column; gap: 12px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -286,9 +289,14 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
     </div>
   </div>
 
+  <div class="notice warn" id="nudge" hidden>
+    <p id="nudgeMsg"></p>
+    <button class="btn small primary" id="nudgeBtn" type="button">Respaldar ahora</button>
+  </div>
+
   <div class="notice" id="notice" hidden>
-    <p>Estas deudas son de ejemplo para que veas cómo funciona. Edítalas o bórralas cuando quieras.</p>
-    <button class="btn small" id="clearExamples" type="button">Borrar ejemplos</button>
+    <p>Estas deudas son de ejemplo para que veas cómo funciona. Si borraste los datos del navegador, carga tu archivo de respaldo.</p>
+    <div class="n-btns"><button class="btn small primary" id="restoreBtn" type="button">Cargar mi respaldo</button><button class="btn small" id="clearExamples" type="button">Borrar ejemplos</button></div>
   </div>
 
   <div class="list" id="list"></div>
@@ -366,7 +374,7 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
 (function () {
   var KEY = 'mis-deudas-v1';
   var nf = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  var state = { orden: 'desc', debts: [] };
+  var state = { orden: 'desc', debts: [], ultimoRespaldo: null, dirty: false };
   var openAct = null;
   var focusAct = false;
   var expanded = {};
@@ -393,7 +401,8 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
   function plural(n, a, b) { return n === 1 ? a : b; }
 
   /* ---------- Guardado ---------- */
-  function persist() {
+  function persist(clean) {
+    if (!clean) state.dirty = true;
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
   }
   function mov(m, diasAtras) {
@@ -440,6 +449,8 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
         if (s && Array.isArray(s.debts)) {
           state.orden = s.orden === 'asc' ? 'asc' : 'desc';
           state.debts = s.debts;
+          state.ultimoRespaldo = typeof s.ultimoRespaldo === 'string' ? s.ultimoRespaldo : null;
+          state.dirty = !!s.dirty;
           normalize();
           return;
         }
@@ -513,6 +524,20 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
     return h + '</ul></div>';
   }
 
+  function renderNudge() {
+    var real = state.debts.some(function (d) { return !d.ejemplo; });
+    var dias = state.ultimoRespaldo ? daysBetween(parseDate(state.ultimoRespaldo), today()) : null;
+    var show = real && state.dirty && (dias === null || dias >= 7);
+    $('nudge').hidden = !show;
+    if (show) $('nudgeMsg').textContent = dias === null
+      ? 'Aún no tienes un respaldo. Si borras los datos del navegador, tus deudas se pierden.'
+      : 'Tu último respaldo fue hace ' + dias + ' días y hay cambios nuevos.';
+  }
+  function markBackup() {
+    state.ultimoRespaldo = iso(today()); state.dirty = false;
+    persist(true); renderNudge();
+  }
+
   function cardHTML(d) {
     var p = calc(d);
     var done = p.resta <= 0;
@@ -576,6 +601,7 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
     $('sortBtn').classList.toggle('asc', asc);
     $('sortLabel').textContent = asc ? 'Menor a mayor' : 'Mayor a menor';
     $('notice').hidden = !state.debts.some(function (d) { return d.ejemplo; });
+    renderNudge();
     renderSummary();
     var list = $('list');
     if (!state.debts.length) {
@@ -683,6 +709,9 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
     state.orden = state.orden === 'desc' ? 'asc' : 'desc';
     persist(); render();
   });
+
+  $('nudgeBtn').addEventListener('click', function () { $('backupBtn').click(); });
+  $('restoreBtn').addEventListener('click', function () { $('backupBtn').click(); });
 
   $('clearExamples').addEventListener('click', function () {
     state.debts = state.debts.filter(function (d) { return !d.ejemplo; });
@@ -805,7 +834,7 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
     if (window.showSaveFilePicker) {
       window.showSaveFilePicker({ suggestedName: name, types: [{ description: 'Respaldo de deudas', accept: { 'application/json': ['.json'] } }] })
         .then(function (h) { return h.createWritable().then(function (w) { return w.write(jsonBlob()).then(function () { return w.close(); }); }); })
-        .then(function () { toast('Archivo guardado.'); })
+        .then(function () { markBackup(); toast('Archivo guardado.'); })
         .catch(function (e) { if (!e || e.name !== 'AbortError') setBErr('No se pudo guardar el archivo.'); });
       return;
     }
@@ -814,6 +843,7 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
     a.href = url; a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    markBackup();
     toast('Archivo descargado. Búscalo en Descargas.');
   });
 
@@ -822,13 +852,13 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
     var f = pickShareFile();
     if (!f) { setBErr('Este navegador no deja compartir archivos. Usa Guardar archivo.'); return; }
     navigator.share({ files: [f], title: 'Respaldo de Mis Deudas' })
-      .then(function () { toast('Archivo enviado.'); })
+      .then(function () { markBackup(); toast('Archivo enviado.'); })
       .catch(function (e) { if (!e || e.name !== 'AbortError') setBErr('No se pudo compartir. Prueba con Guardar archivo.'); });
   });
 
   $('copyData').addEventListener('click', function () {
     setBErr('');
-    var done = function () { toast('Datos copiados.'); };
+    var done = function () { markBackup(); toast('Datos copiados.'); };
     var fail = function () { setBErr('No se pudo copiar. Prueba con Guardar archivo.'); };
     try { navigator.clipboard.writeText(exportJSON()).then(done, fail); } catch (e) { fail(); }
   });
@@ -877,7 +907,7 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
     if (pendingImport.orden) state.orden = pendingImport.orden;
     pendingImport = null; openAct = null;
     $('importConfirm').hidden = true;
-    persist(); render(); closeBackup();
+    persist(); markBackup(); render(); closeBackup();
     toast('Deudas cargadas desde el archivo.');
   });
   $('importNo').addEventListener('click', function () { pendingImport = null; $('importConfirm').hidden = true; });
