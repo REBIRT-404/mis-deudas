@@ -193,7 +193,8 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-h
 .hint { font-size: 13px; color: var(--muted); }
 
 .card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.card-actions .btn { flex: 1 1 auto; }
+.card-actions { flex-wrap: nowrap; }
+.card-actions .btn { flex: 1 1 auto; padding: 0 8px; font-size: 14px; white-space: nowrap; min-width: 0; }
 .pay { display: flex; gap: 8px; flex-wrap: wrap; }
 .pay input { flex: 1 1 140px; min-width: 0; }
 
@@ -202,6 +203,11 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-h
 .hist-toggle svg { width: 18px; height: 18px; flex: none; transition: transform .2s ease; }
 .hist-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
 .card { cursor: pointer; }
+.card-top { cursor: pointer; border-radius: 8px; }
+.card-meta { display: flex; align-items: center; gap: 6px; flex: none; }
+.chev { width: 18px; height: 18px; color: var(--muted); transition: transform .2s ease; }
+.card.open .chev { transform: rotate(180deg); }
+.card.is-compact .hint-open { display: none; }
 .hist { background: var(--surface-2); border-radius: 12px; padding: 2px 12px; }
 .hist .hint { padding: 10px 0; }
 .mov { list-style: none; margin: 0; padding: 0; }
@@ -279,7 +285,7 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
     <h2>Tus deudas</h2>
     <div class="actions">
       <button class="btn small" id="sortBtn" type="button" aria-label="Cambiar orden por monto">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m6 13 6 6 6-6"/></svg>
+        <span id="sortIcon" style="display:inline-flex"></span>
         <span id="sortLabel">Mayor a menor</span>
       </button>
       <button class="btn small primary" id="addBtn" type="button">
@@ -447,7 +453,7 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
       try {
         var s = JSON.parse(raw);
         if (s && Array.isArray(s.debts)) {
-          state.orden = s.orden === 'asc' ? 'asc' : 'desc';
+          state.orden = (s.orden === 'asc' || s.orden === 'fecha') ? s.orden : 'desc';
           state.debts = s.debts;
           state.ultimoRespaldo = typeof s.ultimoRespaldo === 'string' ? s.ultimoRespaldo : null;
           state.dirty = !!s.dirty;
@@ -543,21 +549,18 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
     var done = p.resta <= 0;
     var pct = Math.min(100, Math.round(p.pagado / d.monto * 100));
     var st = status(p);
-    var nAbonos = (d.abonos || []).length;
     var isOpen = !!expanded[d.id];
     var act = openAct && openAct.id === d.id ? openAct.kind : null;
-    var h = '<article class="card' + (done ? ' is-done' : '') + '" data-id="' + d.id + '">';
-    h += '<div class="card-top"><h3 class="name">' + esc(d.nombre) + (d.ejemplo ? ' <span class="tag">Ejemplo</span>' : '') + '</h3>';
-    h += '<span class="pill ' + st.cls + '">' + st.text + '</span></div>';
+    var h = '<article class="card' + (done ? ' is-done' : '') + (isOpen ? ' open' : '') + '" data-id="' + d.id + '">';
+    h += '<div class="card-top" data-act="historial" role="button" tabindex="0" aria-expanded="' + isOpen + '" aria-label="' + (isOpen ? 'Ocultar' : 'Ver') + ' detalles de ' + esc(d.nombre) + '"><h3 class="name">' + esc(d.nombre) + (d.ejemplo ? ' <span class="tag">Ejemplo</span>' : '') + '</h3>';
+    h += '<span class="card-meta"><span class="pill ' + st.cls + '">' + st.text + '</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></div>';
     h += '<p class="due">Fecha de pago: ' + fechaTxt(d.fecha) + '</p>';
     h += '<div class="amounts"><div><span class="lbl">' + (done ? 'Liquidada' : 'Resta por pagar') + '</span><span class="big">' + fmt(p.resta) + '</span></div>';
     h += '<div class="of">de ' + fmt(d.monto) + '</div></div>';
     h += '<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '" aria-label="Progreso de ' + esc(d.nombre) + '"><span style="width:' + pct + '%"></span></div>';
     h += '<p class="bar-note"><span>Pagado ' + fmt(p.pagado) + '</span><span>' + pct + '%</span></p>';
-    h += '<button type="button" class="hist-toggle" data-act="historial" aria-expanded="' + isOpen + '"><span>' + (isOpen ? 'Ocultar abonos' : 'Ver abonos' + (nAbonos ? ' (' + nAbonos + ')' : '')) + '</span>';
-    h += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>';
     if (isOpen) h += histHTML(d);
-    if (!done) {
+    if (!done && isOpen) {
       h += '<div class="plan"><div class="plan-head"><span class="lbl">Plan de ahorro</span>';
       h += '<div class="stepper" role="group" aria-label="Dividir en pagos"><button type="button" data-act="menos" aria-label="Un pago menos">−</button>';
       h += '<span><b>' + p.pagos + '</b> ' + plural(p.pagos, 'pago', 'pagos') + '</span>';
@@ -597,9 +600,15 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
 
   function render() {
     $('hoy').textContent = today().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
-    var asc = state.orden === 'asc';
+    var orden = state.orden;
+    var asc = orden === 'asc';
     $('sortBtn').classList.toggle('asc', asc);
-    $('sortLabel').textContent = asc ? 'Menor a mayor' : 'Mayor a menor';
+    var ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m6 13 6 6 6-6"/></svg>';
+    var CAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
+    var etiqueta = orden === 'fecha' ? 'Vence primero' : (asc ? 'Menor a mayor' : 'Mayor a menor');
+    $('sortLabel').textContent = etiqueta;
+    $('sortIcon').innerHTML = orden === 'fecha' ? CAL : ARROW;
+    $('sortBtn').setAttribute('aria-label', 'Orden actual: ' + etiqueta + '. Toca para cambiar.');
     $('notice').hidden = !state.debts.some(function (d) { return d.ejemplo; });
     renderNudge();
     renderSummary();
@@ -609,6 +618,10 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
       return;
     }
     var sorted = state.debts.slice().sort(function (a, b) {
+      if (orden === 'fecha') {
+        var pa = a.pagado >= a.monto ? 1 : 0, pb = b.pagado >= b.monto ? 1 : 0;
+        return (pa - pb) || a.fecha.localeCompare(b.fecha) || b.monto - a.monto;
+      }
       var diff = asc ? a.monto - b.monto : b.monto - a.monto;
       return diff || a.fecha.localeCompare(b.fecha);
     });
@@ -675,6 +688,14 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
     }
   });
 
+  $('list').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var top = e.target.closest('.card-top');
+    if (!top || e.target !== top) return;
+    e.preventDefault();
+    top.click();
+  });
+
   $('list').addEventListener('submit', function (e) {
     var form = e.target.closest('[data-form]');
     if (!form) return;
@@ -706,7 +727,7 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
 
   /* ---------- Orden ---------- */
   $('sortBtn').addEventListener('click', function () {
-    state.orden = state.orden === 'desc' ? 'asc' : 'desc';
+    state.orden = state.orden === 'desc' ? 'asc' : (state.orden === 'asc' ? 'fecha' : 'desc');
     persist(); render();
   });
 
@@ -898,7 +919,7 @@ input[type="text"], input[type="number"], input[type="date"], input:not([type]) 
       out.push(item);
     }
     if (!out.length) return null;
-    out.orden = o && o.orden === 'asc' ? 'asc' : 'desc';
+    out.orden = o && (o.orden === 'asc' || o.orden === 'fecha') ? o.orden : 'desc';
     return out;
   }
   $('importYes').addEventListener('click', function () {
